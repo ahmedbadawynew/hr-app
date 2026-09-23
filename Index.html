@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>بوابة الموارد البشرية</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Cairo', sans-serif; }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800">
+
+  <!-- 1. شاشة تسجيل الدخول -->
+  <div id="loginSection" class="flex items-center justify-center min-h-screen p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-8 border border-slate-100">
+      <div class="text-center mb-8">
+        <h1 class="text-2xl font-bold text-indigo-900">بوابة الموارد البشرية</h1>
+        <p class="text-sm text-slate-500 mt-2">يرجى تسجيل الدخول للمتابعة</p>
+      </div>
+      
+      <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-6">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-2">اسم المستخدم أو كود الموظف</label>
+          <input type="text" id="username" required class="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition">
+        </div>
+        
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-2">كلمة المرور</label>
+          <input type="password" id="password" required class="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition">
+        </div>
+
+        <div id="loginMessage" class="text-sm text-red-600 text-center font-medium"></div>
+
+        <button type="submit" id="loginBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg transition duration-200 shadow-md">
+          دخول
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 2. شاشة تغيير كلمة المرور الإجبارية عند أول تسجيل دخول -->
+  <div id="changePasswordSection" class="hidden flex items-center justify-center min-h-screen p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-8 border border-slate-100">
+      <div class="text-center mb-6">
+        <h2 class="text-xl font-bold text-indigo-900">تغيير كلمة المرور المؤقتة</h2>
+        <p class="text-sm text-slate-500 mt-2">هذه هي مرتك الأولى للدخول، يلزمك إنشاء كلمة مرور جديدة لتأمين حسابك.</p>
+      </div>
+      <form id="changePasswordForm" onsubmit="handlePasswordChange(event)" class="space-y-4">
+        <input type="hidden" id="changePassUsername">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">كلمة المرور الجديدة</label>
+          <input type="password" id="newPassword" required minlength="4" class="w-full px-4 py-3 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div id="changePassMessage" class="text-sm text-red-600 text-center font-medium"></div>
+        <button type="submit" id="changePassBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg transition">حفظ والدخول للنظام</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 3. الشاشة الرئيسية للوحة التحكم -->
+  <div id="mainDashboard" class="hidden min-h-screen flex flex-col">
+    
+    <!-- الهيدر العلوي -->
+    <header class="bg-indigo-900 text-white shadow-md px-6 py-3 flex justify-between items-center flex-wrap gap-4">
+      <div class="flex items-center space-x-6 space-x-reverse flex-wrap gap-4">
+        <h2 class="text-lg font-bold">بوابة الموارد البشرية</h2>
+        
+        <!-- التابات العلوية -->
+        <nav class="flex items-center gap-2 flex-wrap">
+          <button id="btnViewSalary" onclick="switchView('mySalary')" class="px-3 py-1.5 rounded-lg font-medium text-xs md:text-sm transition bg-indigo-800 text-white hover:bg-indigo-700">
+            راتبي الشخصي
+          </button>
+          <button id="btnViewStats" onclick="switchView('stats')" class="px-3 py-1.5 rounded-lg font-medium text-xs md:text-sm transition bg-indigo-800 text-white hover:bg-indigo-700">
+            مؤشرات الإدارة
+          </button>
+          <button id="btnViewSearch" onclick="switchView('search')" class="px-3 py-1.5 rounded-lg font-medium text-xs md:text-sm transition bg-indigo-800 text-white hover:bg-indigo-700">
+            هيكل واستعلام الموظفين
+          </button>
+        </nav>
+      </div>
+
+      <!-- الجهة اليسرى: أيقونة الملف الشخصي + زر خروج -->
+      <div class="flex items-center space-x-3 space-x-reverse">
+        <button onclick="openProfileModal()" class="flex items-center space-x-2 space-x-reverse bg-indigo-800 hover:bg-indigo-700 px-3 py-1.5 rounded-lg text-xs md:text-sm transition text-white border border-indigo-700">
+          <svg class="w-4 h-4 text-indigo-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+          <span id="headerUserName" class="font-semibold">مستخدم</span>
+        </button>
+        
+        <button onclick="logout()" class="bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded-lg text-xs md:text-sm font-semibold transition">خروج</button>
+      </div>
+    </header>
+
+    <!-- محتوى الشاشة -->
+    <main class="flex-1 p-6 max-w-7xl mx-auto w-full">
+      
+      <!-- تاب: راتبي الشخصي -->
+      <div id="viewMySalary" class="view-content space-y-6">
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-wrap items-center gap-4">
+          <label class="font-medium text-slate-700">اختر شهر الراتب:</label>
+          <select id="salaryMonthSelect" class="border rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+            <!-- تعبئة الشهور عبر JavaScript -->
+          </select>
+          <button onclick="viewSalaryDetails()" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition font-semibold">عرض تفاصيل الراتب</button>
+        </div>
+
+        <div id="salaryContainer" class="hidden bg-white p-6 rounded-xl shadow-sm border border-slate-100 space-y-4">
+          <h3 class="text-lg font-bold text-indigo-900 border-b pb-3">تفاصيل كشف الراتب لشهر <span id="salaryMonthTitle"></span></h3>
+          <div id="salaryDetailsContent" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+          <div class="bg-indigo-50 p-4 rounded-lg flex justify-between items-center text-indigo-900 font-bold text-lg mt-4">
+            <span>صافي الراتب المستحق:</span>
+            <span id="salaryNetTotal">0.00</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- تاب: مؤشرات الإدارة -->
+      <div id="viewStats" class="view-content hidden space-y-6">
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-wrap items-center gap-4">
+          <label class="font-medium text-slate-700">اختر الشهر:</label>
+          <select id="statsMonthSelect" class="border rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+            <option value="ALL">كل الشهور</option>
+          </select>
+          <button onclick="loadDashboardStats()" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition font-semibold">تحديث المؤشرات</button>
+        </div>
+
+        <div id="statsResultBox" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 text-center">
+            <p id="statsCountLabel" class="text-sm text-slate-400 mb-2">عدد الموظفين</p>
+            <p id="statsTotalEmployees" class="text-3xl font-bold text-indigo-900">-</p>
+          </div>
+          <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 text-center">
+            <p class="text-sm text-slate-400 mb-2">إجمالي الرواتب (الصافي)</p>
+            <p id="statsTotalPayroll" class="text-3xl font-bold text-indigo-900">-</p>
+          </div>
+          <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 text-center">
+            <p class="text-sm text-slate-400 mb-2">متوسط الراتب</p>
+            <p id="statsAvgSalary" class="text-3xl font-bold text-indigo-900">-</p>
+          </div>
+        </div>
+        <div id="statsMessage" class="text-sm text-red-600 text-center font-medium"></div>
+
+        <!-- جدول أعلى/أقل راتب لكل إدارة -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-x-auto">
+          <div class="px-5 pt-5">
+            <h3 class="text-base font-bold text-indigo-900">أعلى وأقل راتب لكل إدارة (بشرط أن يكون الصافي أكبر من صفر)</h3>
+          </div>
+          <table class="w-full text-sm text-right mt-3">
+            <thead class="bg-slate-50 text-slate-500">
+              <tr>
+                <th class="px-4 py-3">الإدارة</th>
+                <th class="px-4 py-3">عدد الموظفين</th>
+                <th class="px-4 py-3">أعلى شامل</th>
+                <th class="px-4 py-3">أقل شامل</th>
+                <th class="px-4 py-3">أعلى صافي</th>
+                <th class="px-4 py-3">أقل صافي</th>
+              </tr>
+            </thead>
+            <tbody id="deptBreakdownBody">
+              <tr><td colspan="6" class="text-center text-slate-400 py-8">اضغط "تحديث المؤشرات" لعرض البيانات</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- الرسم البياني -->
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+          <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <h3 class="text-base font-bold text-indigo-900">أعداد الموظفين</h3>
+            <div class="flex items-center gap-2">
+              <label class="text-sm text-slate-500">عرض حسب:</label>
+              <select id="chartGroupBySelect" onchange="renderChart()" class="border rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                <option value="total">الكل</option>
+                <option value="department" selected>كل إدارة</option>
+                <option value="section">كل قسم</option>
+              </select>
+            </div>
+          </div>
+          <div style="height: 360px;">
+            <canvas id="employeesChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- تاب: هيكل واستعلام الموظفين -->
+      <div id="viewSearch" class="view-content hidden space-y-6">
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 space-y-4">
+          <div class="flex flex-wrap items-end gap-4">
+            <div class="flex-1 min-w-[220px]">
+              <label class="block text-xs font-medium text-slate-500 mb-1">بحث بالاسم أو كود الموظف</label>
+              <input type="text" id="filterSearchText" placeholder="اكتب اسم الموظف أو كوده..."
+                     class="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-500 mb-1">الفرع</label>
+              <select id="filterBranch" onchange="onFilterBranchChange()" class="border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500 bg-white min-w-[140px]">
+                <option value="">الكل</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-500 mb-1">الإدارة</label>
+              <select id="filterDept" onchange="onFilterDeptChange()" class="border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500 bg-white min-w-[140px]">
+                <option value="">الكل</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-500 mb-1">القسم</label>
+              <select id="filterSection" class="border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500 bg-white min-w-[140px]">
+                <option value="">الكل</option>
+              </select>
+            </div>
+          </div>
+          <div class="flex flex-wrap items-end gap-4 border-t pt-4">
+            <div>
+              <label class="block text-xs font-medium text-slate-500 mb-1">شهر الاستعلام (لزر تفاصيل الراتب)</label>
+              <select id="searchQueryMonth" class="border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500 bg-white min-w-[140px]">
+              </select>
+            </div>
+            <button onclick="loadEmployeesList()" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition font-semibold h-[42px]">بحث</button>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-x-auto">
+          <table class="w-full text-sm text-right">
+            <thead class="bg-slate-50 text-slate-500">
+              <tr>
+                <th class="px-4 py-3">كود الموظف</th>
+                <th class="px-4 py-3">الاسم</th>
+                <th class="px-4 py-3">الفرع</th>
+                <th class="px-4 py-3">الإدارة</th>
+                <th class="px-4 py-3">القسم</th>
+                <th class="px-4 py-3">الوظيفة</th>
+                <th class="px-4 py-3">إجراءات</th>
+              </tr>
+            </thead>
+            <tbody id="employeesTableBody">
+              <tr><td colspan="7" class="text-center text-slate-400 py-8">اضغط بحث لعرض الموظفين ضمن نطاق صلاحيتك</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div id="searchMessage" class="text-sm text-red-600 text-center font-medium"></div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- 4. النافذة المنبثقة (Modal) لعرض بيانات الموظف صاحب الجلسة -->
+  <div id="profileModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 relative">
+      <div class="flex justify-between items-center mb-4 border-b pb-3">
+        <h3 class="text-lg font-bold text-indigo-900 flex items-center gap-2">
+          <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+          الملف الشخصي للموظف
+        </h3>
+        <button onclick="closeProfileModal()" class="text-slate-400 hover:text-slate-600 font-bold text-2xl">&times;</button>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+        <div class="bg-slate-50 p-3 rounded-lg"><span class="text-slate-400 block text-xs">الاسم الكامل</span><span id="modalEmpName" class="font-bold text-slate-800">-</span></div>
+        <div class="bg-slate-50 p-3 rounded-lg"><span class="text-slate-400 block text-xs">كود الموظف</span><span id="modalEmpId" class="font-bold text-slate-800">-</span></div>
+        <div class="bg-slate-50 p-3 rounded-lg"><span class="text-slate-400 block text-xs">المسمى الوظيفي</span><span id="modalEmpJob" class="font-bold text-slate-800">-</span></div>
+        <div class="bg-slate-50 p-3 rounded-lg"><span class="text-slate-400 block text-xs">الفرع</span><span id="modalEmpBranch" class="font-bold text-slate-800">-</span></div>
+        <div class="bg-slate-50 p-3 rounded-lg"><span class="text-slate-400 block text-xs">الإدارة</span><span id="modalEmpDept" class="font-bold text-slate-800">-</span></div>
+        <div class="bg-slate-50 p-3 rounded-lg"><span class="text-slate-400 block text-xs">تاريخ التعيين</span><span id="modalEmpHire" class="font-bold text-slate-800">-</span></div>
+      </div>
+      <div class="mt-6 text-center">
+        <button onclick="closeProfileModal()" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition text-sm font-bold">إغلاق</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. Modal بيانات أي موظف من تاب البحث -->
+  <div id="employeeDetailModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 relative">
+      <div class="flex justify-between items-center mb-4 border-b pb-3">
+        <h3 class="text-lg font-bold text-indigo-900">بيانات الموظف</h3>
+        <button onclick="closeEmployeeDetailModal()" class="text-slate-400 hover:text-slate-600 font-bold text-2xl">&times;</button>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+        <div class="bg-slate-50 p-3 rounded-lg"><span class="text-slate-400 block text-xs">الاسم الكامل</span><span id="edEmpName" class="font-bold text-slate-800">-</span></div>
+        <div class="bg-slate-50 p-3 rounded-lg"><span class="text-slate-400 block text-xs">كود الموظف</span><span id="edEmpId" class="font-bold text-slate-800">-</span></div>
+        <div class="bg-slate-50 p-3 rounded-lg"><span class="text-slate-400 block text-xs">المسمى الوظيفي</span><span id="edEmpJob" class="font-bold text-slate-800">-</span></div>
+        <div class="bg-slate-50 p-3 rounded-lg"><span class="text-slate-400 block text-xs">الفرع</span><span id="edEmpBranch" class="font-bold text-slate-800">-</span></div>
+        <div class="bg-slate-50 p-3 rounded-lg"><span class="text-slate-400 block text-xs">الإدارة</span><span id="edEmpDept" class="font-bold text-slate-800">-</span></div>
+        <div class="bg-slate-50 p-3 rounded-lg"><span class="text-slate-400 block text-xs">القسم</span><span id="edEmpSection" class="font-bold text-slate-800">-</span></div>
+        <div class="bg-slate-50 p-3 rounded-lg"><span class="text-slate-400 block text-xs">تاريخ التعيين</span><span id="edEmpHire" class="font-bold text-slate-800">-</span></div>
+      </div>
+      <div class="mt-6 text-center">
+        <button onclick="closeEmployeeDetailModal()" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition text-sm font-bold">إغلاق</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. Modal تفاصيل راتب موظف من تاب البحث -->
+  <div id="employeeSalaryModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl p-6 relative max-h-[85vh] overflow-y-auto">
+      <div class="flex justify-between items-center mb-4 border-b pb-3">
+        <h3 class="text-lg font-bold text-indigo-900">تفاصيل راتب <span id="esModalEmpName"></span> - <span id="esModalMonth"></span></h3>
+        <button onclick="closeEmployeeSalaryModal()" class="text-slate-400 hover:text-slate-600 font-bold text-2xl">&times;</button>
+      </div>
+      <div id="esModalContent" class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm"></div>
+      <div class="bg-indigo-50 p-4 rounded-lg flex justify-between items-center text-indigo-900 font-bold text-lg mt-4">
+        <span>صافي الراتب المستحق:</span>
+        <span id="esModalNet">0.00</span>
+      </div>
+      <div id="esModalMessage" class="text-sm text-red-600 text-center font-medium mt-2"></div>
+      <div class="mt-6 text-center">
+        <button onclick="closeEmployeeSalaryModal()" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition text-sm font-bold">إغلاق</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentUserSession = null;
+    let sessionToken = null;
+    let appHierarchy = {};
+    let lastChartData = null;
+    let chartInstance = null;
+
+    function showSection(sectionId) {
+      document.getElementById('loginSection').classList.add('hidden');
+      document.getElementById('changePasswordSection').classList.add('hidden');
+      document.getElementById('mainDashboard').classList.add('hidden');
+      document.getElementById(sectionId).classList.remove('hidden');
+    }
+
+    function switchView(viewName) {
+      document.getElementById('viewMySalary').classList.add('hidden');
+      document.getElementById('viewStats').classList.add('hidden');
+      document.getElementById('viewSearch').classList.add('hidden');
+
+      document.getElementById('btnViewSalary').className = "px-3 py-1.5 rounded-lg font-medium text-xs md:text-sm transition bg-indigo-800 text-white hover:bg-indigo-700 opacity-75";
+      document.getElementById('btnViewStats').className = "px-3 py-1.5 rounded-lg font-medium text-xs md:text-sm transition bg-indigo-800 text-white hover:bg-indigo-700 opacity-75";
+      document.getElementById('btnViewSearch').className = "px-3 py-1.5 rounded-lg font-medium text-xs md:text-sm transition bg-indigo-800 text-white hover:bg-indigo-700 opacity-75";
+
+      if (viewName === 'mySalary') {
+        document.getElementById('viewMySalary').classList.remove('hidden');
+        document.getElementById('btnViewSalary').className = "px-3 py-1.5 rounded-lg font-medium text-xs md:text-sm transition bg-indigo-600 text-white shadow-inner opacity-100";
+      } else if (viewName === 'stats') {
+        document.getElementById('viewStats').classList.remove('hidden');
+        document.getElementById('btnViewStats').className = "px-3 py-1.5 rounded-lg font-medium text-xs md:text-sm transition bg-indigo-600 text-white shadow-inner opacity-100";
+        loadDashboardStats();
+      } else if (viewName === 'search') {
+        document.getElementById('viewSearch').classList.remove('hidden');
+        document.getElementById('btnViewSearch').className = "px-3 py-1.5 rounded-lg font-medium text-xs md:text-sm transition bg-indigo-600 text-white shadow-inner opacity-100";
+      }
+    }
+
+    function handleLogin(e) {
+      if (e && e.preventDefault) e.preventDefault();
+      const u = document.getElementById('username').value.trim();
+      const p = document.getElementById('password').value;
+      const btn = document.getElementById('loginBtn');
+      const msg = document.getElementById('loginMessage');
+
+      if (!u || !p) { msg.textContent = "أدخل البيانات المطلوبة"; return; }
+
+      msg.textContent = "";
+      btn.innerText = "جاري التحقق...";
+      btn.disabled = true;
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          btn.innerText = "دخول";
+          btn.disabled = false;
+          if (!res) { msg.textContent = "لم يستجب السيرفر."; return; }
+
+          if (res.status === "MUST_CHANGE_PASSWORD") {
+            document.getElementById('changePassUsername').value = res.username;
+            document.getElementById('newPassword').value = '';
+            showSection('changePasswordSection');
+          } else if (res.status === "SUCCESS") {
+            currentUserSession = res.user;
+            sessionToken = res.token;
+
+            document.getElementById('headerUserName').textContent = currentUserSession.name || 'مستخدم';
+            document.getElementById('modalEmpName').textContent = currentUserSession.name || '-';
+            document.getElementById('modalEmpJob').textContent = currentUserSession.jobTitle || 'موظف';
+            document.getElementById('modalEmpId').textContent = currentUserSession.empId || '-';
+            document.getElementById('modalEmpBranch').textContent = currentUserSession.branch || '-';
+            document.getElementById('modalEmpDept').textContent = currentUserSession.department || '-';
+            document.getElementById('modalEmpHire').textContent = currentUserSession.hireDate || '-';
+
+            document.getElementById('btnViewSalary').style.display = currentUserSession.showMySalary ? 'inline-block' : 'none';
+            document.getElementById('btnViewStats').style.display = currentUserSession.showDashboard ? 'inline-block' : 'none';
+            document.getElementById('btnViewSearch').style.display = currentUserSession.showSearch ? 'inline-block' : 'none';
+
+            loadAppSettingsAndInit();
+            showSection('mainDashboard');
+
+            if (currentUserSession.showMySalary) switchView('mySalary');
+            else if (currentUserSession.showDashboard) switchView('stats');
+            else if (currentUserSession.showSearch) switchView('search');
+          } else {
+            msg.textContent = res.message || "فشل تسجيل الدخول.";
+          }
+        })
+        .withFailureHandler(function(err) {
+          btn.innerText = "دخول";
+          btn.disabled = false;
+          msg.textContent = "خطأ بالسيرفر: " + (err.message || err.toString());
+        })
+        .loginUser(u, p);
+    }
+
+    function handlePasswordChange(e) {
+      if (e && e.preventDefault) e.preventDefault();
+      const u = document.getElementById('changePassUsername').value;
+      const newP = document.getElementById('newPassword').value;
+      const btn = document.getElementById('changePassBtn');
+      const msg = document.getElementById('changePassMessage');
+
+      msg.textContent = "";
+      btn.innerText = "جاري الحفظ...";
+      btn.disabled = true;
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          btn.innerText = "حفظ والدخول للنظام";
+          btn.disabled = false;
+          if (res && res.status === "SUCCESS") {
+            document.getElementById('username').value = u;
+            document.getElementById('password').value = newP;
+            showSection('loginSection');
+            handleLogin();
+          } else {
+            msg.textContent = res.message || "حدث خطأ أثناء حفظ كلمة المرور.";
+          }
+        })
+        .withFailureHandler(function(err) {
+          btn.innerText = "حفظ والدخول للنظام";
+          btn.disabled = false;
+          msg.textContent = "خطأ بالسيرفر: " + (err.message || err.toString());
+        })
+        .updatePasswordAndLogin(u, newP);
+    }
+
+    function openProfileModal() { document.getElementById('profileModal').classList.remove('hidden'); }
+    function closeProfileModal() { document.getElementById('profileModal').classList.add('hidden'); }
+    function closeEmployeeDetailModal() { document.getElementById('employeeDetailModal').classList.add('hidden'); }
+    function closeEmployeeSalaryModal() { document.getElementById('employeeSalaryModal').classList.add('hidden'); }
+
+    function loadAppSettingsAndInit() {
+      google.script.run.withSuccessHandler(function(settings) {
+        if (!settings || settings.status !== "SUCCESS") return;
+
+        appHierarchy = settings.hierarchy || {};
+
+        ['salaryMonthSelect', 'statsMonthSelect', 'searchQueryMonth'].forEach(selId => {
+          const select = document.getElementById(selId);
+          const isStats = selId === 'statsMonthSelect';
+          select.innerHTML = isStats ? '<option value="ALL">كل الشهور</option>' : '';
+          settings.months.forEach(m => {
+            let opt = document.createElement('option');
+            opt.value = m.value;
+            opt.textContent = m.name;
+            select.appendChild(opt);
+          });
+        });
+
+        const branchSelect = document.getElementById('filterBranch');
+        branchSelect.innerHTML = '<option value="">الكل</option>';
+        Object.keys(appHierarchy).forEach(branch => {
+          let opt = document.createElement('option');
+          opt.value = branch;
+          opt.textContent = branch;
+          branchSelect.appendChild(opt);
+        });
+      }).getAppSettings();
+    }
+
+    function onFilterBranchChange() {
+      const branch = document.getElementById('filterBranch').value;
+      const deptSelect = document.getElementById('filterDept');
+      const sectionSelect = document.getElementById('filterSection');
+      deptSelect.innerHTML = '<option value="">الكل</option>';
+      sectionSelect.innerHTML = '<option value="">الكل</option>';
+
+      if (branch && appHierarchy[branch]) {
+        Object.keys(appHierarchy[branch]).forEach(dept => {
+          let opt = document.createElement('option');
+          opt.value = dept;
+          opt.textContent = dept;
+          deptSelect.appendChild(opt);
+        });
+      }
+    }
+
+    function onFilterDeptChange() {
+      const branch = document.getElementById('filterBranch').value;
+      const dept = document.getElementById('filterDept').value;
+      const sectionSelect = document.getElementById('filterSection');
+      sectionSelect.innerHTML = '<option value="">الكل</option>';
+
+      if (branch && dept && appHierarchy[branch] && appHierarchy[branch][dept]) {
+        appHierarchy[branch][dept].forEach(sec => {
+          let opt = document.createElement('option');
+          opt.value = sec;
+          opt.textContent = sec;
+          sectionSelect.appendChild(opt);
+        });
+      }
+    }
+
+    function viewSalaryDetails() {
+      if (!sessionToken) return;
+      const m = document.getElementById('salaryMonthSelect').value;
+
+      google.script.run.withSuccessHandler(function(res) {
+        const salaryContainer = document.getElementById('salaryContainer');
+        const detailsContent = document.getElementById('salaryDetailsContent');
+
+        if (res && res.status === "SUCCESS") {
+          document.getElementById('salaryMonthTitle').textContent = res.month;
+          document.getElementById('salaryNetTotal').textContent = Number(res.netSalary).toLocaleString() + " ج.م";
+
+          detailsContent.innerHTML = "";
+          res.details.forEach(item => {
+            const card = document.createElement('div');
+            card.className = "bg-slate-50 p-3 rounded-lg border flex justify-between items-center";
+            card.innerHTML = `<span class="text-slate-600 text-sm font-medium">${item.title}</span><span class="font-bold text-slate-800">${item.value}</span>`;
+            detailsContent.appendChild(card);
+          });
+
+          salaryContainer.classList.remove('hidden');
+        } else {
+          alert(res ? res.message : "لم يتم العثور على بيانات راتب لهذا الشهر.");
+          salaryContainer.classList.add('hidden');
+        }
+      }).getSalaryData(sessionToken, m);
+    }
+
+    function fmtMoney(v) {
+      return Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: 2 }) + " ج.م";
+    }
+
+    function loadDashboardStats() {
+      if (!sessionToken) return;
+      const m = document.getElementById('statsMonthSelect').value;
+      const msgEl = document.getElementById('statsMessage');
+      msgEl.textContent = "";
+
+      const monthLabel = document.getElementById('statsMonthSelect').selectedOptions[0].textContent;
+      document.getElementById('statsCountLabel').textContent = "عدد الموظفين (" + monthLabel + ")";
+
+      google.script.run.withSuccessHandler(function(res) {
+        if (res && res.status === "SUCCESS") {
+          document.getElementById('statsTotalEmployees').textContent = res.totalEmployees;
+          document.getElementById('statsTotalPayroll').textContent = fmtMoney(res.totalPayroll);
+          document.getElementById('statsAvgSalary').textContent = fmtMoney(res.averageSalary);
+
+          renderDeptBreakdown(res.departmentBreakdown || []);
+          lastChartData = res.chart;
+          renderChart();
+        } else {
+          document.getElementById('statsTotalEmployees').textContent = '-';
+          document.getElementById('statsTotalPayroll').textContent = '-';
+          document.getElementById('statsAvgSalary').textContent = '-';
+          msgEl.textContent = res ? res.message : "حدث خطأ.";
+        }
+      }).getManagerDashboardData(sessionToken, m);
+    }
+
+    function cellFor(entry) {
+      if (!entry) return '<span class="text-slate-300">-</span>';
+      return `<div class="font-medium">${fmtMoney(entry.value)}</div><div class="text-xs text-slate-400">${entry.name} (${entry.empId})</div>`;
+    }
+
+    function renderDeptBreakdown(rows) {
+      const tbody = document.getElementById('deptBreakdownBody');
+      if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-slate-400 py-8">لا توجد بيانات لهذا الشهر ضمن نطاقك.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = rows.map(r => `
+        <tr class="border-t border-slate-100 hover:bg-slate-50 align-top">
+          <td class="px-4 py-3 font-medium">${r.department}</td>
+          <td class="px-4 py-3">${r.count}</td>
+          <td class="px-4 py-3">${cellFor(r.maxGross)}</td>
+          <td class="px-4 py-3">${cellFor(r.minGross)}</td>
+          <td class="px-4 py-3">${cellFor(r.maxNet)}</td>
+          <td class="px-4 py-3">${cellFor(r.minNet)}</td>
+        </tr>
+      `).join('');
+    }
+
+    function renderChart() {
+      if (!lastChartData) return;
+      const groupBy = document.getElementById('chartGroupBySelect').value;
+      const data = lastChartData[groupBy] || { labels: [], counts: [] };
+
+      const ctx = document.getElementById('employeesChart').getContext('2d');
+      if (chartInstance) chartInstance.destroy();
+
+      chartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: data.labels,
+          datasets: [{
+            label: 'عدد الموظفين',
+            data: data.counts,
+            backgroundColor: 'rgba(79, 70, 229, 0.7)',
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, ticks: { precision: 0 } },
+            x: { ticks: { autoSkip: false, maxRotation: 60, minRotation: 0 } }
+          }
+        }
+      });
+    }
+
+    function loadEmployeesList() {
+      if (!sessionToken) return;
+      const branch = document.getElementById('filterBranch').value;
+      const dept = document.getElementById('filterDept').value;
+      const section = document.getElementById('filterSection').value;
+      const search = document.getElementById('filterSearchText').value;
+      const tbody = document.getElementById('employeesTableBody');
+      const msgEl = document.getElementById('searchMessage');
+      msgEl.textContent = "";
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center text-slate-400 py-8">جاري التحميل...</td></tr>';
+
+      google.script.run.withSuccessHandler(function(res) {
+        if (res && res.status === "SUCCESS") {
+          if (res.employees.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-slate-400 py-8">لا يوجد موظفون مطابقون.</td></tr>';
+            return;
+          }
+          tbody.innerHTML = res.employees.map(emp => `
+            <tr class="border-t border-slate-100 hover:bg-slate-50">
+              <td class="px-4 py-3">${emp.empId}</td>
+              <td class="px-4 py-3 font-medium">${emp.name}</td>
+              <td class="px-4 py-3">${emp.branch}</td>
+              <td class="px-4 py-3">${emp.department}</td>
+              <td class="px-4 py-3">${emp.section}</td>
+              <td class="px-4 py-3">${emp.jobTitle}</td>
+              <td class="px-4 py-3">
+                <div class="flex gap-2">
+                  <button onclick='showEmployeeSalary(${JSON.stringify(emp.empId)}, ${JSON.stringify(emp.name)})' class="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-indigo-700 transition">تفاصيل الراتب</button>
+                  <button onclick='showEmployeeDetail(${JSON.stringify(emp)})' class="bg-slate-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-slate-700 transition">بيانات الموظف</button>
+                </div>
+              </td>
+            </tr>
+          `).join('');
+        } else {
+          tbody.innerHTML = '<tr><td colspan="7" class="text-center text-slate-400 py-8">-</td></tr>';
+          msgEl.textContent = res ? res.message : "حدث خطأ.";
+        }
+      }).getHREmployeesList(sessionToken, branch, dept, section, search);
+    }
+
+    function showEmployeeDetail(emp) {
+      document.getElementById('edEmpName').textContent = emp.name || '-';
+      document.getElementById('edEmpId').textContent = emp.empId || '-';
+      document.getElementById('edEmpJob').textContent = emp.jobTitle || '-';
+      document.getElementById('edEmpBranch').textContent = emp.branch || '-';
+      document.getElementById('edEmpDept').textContent = emp.department || '-';
+      document.getElementById('edEmpSection').textContent = emp.section || '-';
+      document.getElementById('edEmpHire').textContent = emp.hireDate || '-';
+      document.getElementById('employeeDetailModal').classList.remove('hidden');
+    }
+
+    function showEmployeeSalary(empId, empName) {
+      if (!sessionToken) return;
+      const month = document.getElementById('searchQueryMonth').value;
+      const monthLabel = document.getElementById('searchQueryMonth').selectedOptions[0] ? document.getElementById('searchQueryMonth').selectedOptions[0].textContent : month;
+
+      document.getElementById('esModalEmpName').textContent = empName;
+      document.getElementById('esModalMonth').textContent = monthLabel;
+      document.getElementById('esModalContent').innerHTML = '<p class="text-slate-400 col-span-2 text-center py-6">جاري التحميل...</p>';
+      document.getElementById('esModalNet').textContent = '-';
+      document.getElementById('esModalMessage').textContent = '';
+      document.getElementById('employeeSalaryModal').classList.remove('hidden');
+
+      google.script.run.withSuccessHandler(function(res) {
+        const content = document.getElementById('esModalContent');
+        if (res && res.status === "SUCCESS") {
+          document.getElementById('esModalMonth').textContent = res.month;
+          document.getElementById('esModalNet').textContent = fmtMoney(res.netSalary);
+          content.innerHTML = res.details.map(item => `
+            <div class="bg-slate-50 p-3 rounded-lg border flex justify-between items-center">
+              <span class="text-slate-600 text-sm font-medium">${item.title}</span>
+              <span class="font-bold text-slate-800">${item.value}</span>
+            </div>
+          `).join('');
+        } else {
+          content.innerHTML = '';
+          document.getElementById('esModalNet').textContent = '-';
+          document.getElementById('esModalMessage').textContent = res ? res.message : "حدث خطأ.";
+        }
+      }).getEmployeeSalaryForManager(sessionToken, empId, month);
+    }
+
+    function logout() {
+      currentUserSession = null;
+      sessionToken = null;
+      if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+      document.getElementById('username').value = '';
+      document.getElementById('password').value = '';
+      showSection('loginSection');
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      ['username', 'password'].forEach(id => {
+        document.getElementById(id).addEventListener('keydown', function (e) {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            handleLogin(e);
+          }
+        });
+      });
+      document.getElementById('newPassword').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          handlePasswordChange(e);
+        }
+      });
+    });
+  </script>
+</body>
+</html>
