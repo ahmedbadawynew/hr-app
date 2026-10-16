@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>بوابة الموارد البشرية</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#312e81">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="HR">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" href="icons/icon-192.png">
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #f8fafc; font-family: Tahoma, Arial, sans-serif; }
+    iframe#app { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; }
+    #bell {
+      position: fixed; left: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 10;
+      background: #312e81; color: #fff; border: 0; border-radius: 999px; padding: 10px 16px;
+      font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,.25); display: none; max-width: 80vw;
+    }
+    #bell.show { display: block; }
+    #bell.info { background: #475569; }
+  </style>
+</head>
+<body>
+  <iframe id="app" title="HR Portal" allow="clipboard-read; clipboard-write"></iframe>
+  <button id="bell" type="button"></button>
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
+  <script src="config.js"></script>
+  <script>
+    (function () {
+      var cfg = self.HR_PWA_CONFIG || {};
+      document.getElementById('app').src = cfg.appUrl;
+
+      var bell = document.getElementById('bell');
+      var isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+      var isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
+      var unsupported = false, messaging = null, swReg = null, fcmToken = null;
+      var appWin = null, appOrigin = null;
+
+      function isAllowedOrigin(o) {
+        try {
+          var u = new URL(o);
+          return u.hostname === 'script.google.com' || /(^|\.)googleusercontent\.com$/.test(u.hostname);
+        } catch (e) { return false; }
+      }
+
+      function status() {
+        if (unsupported || !('Notification' in window)) return 'unsupported';
+        return Notification.permission; // default | granted | denied
+      }
+
+      function updateBell() {
+        var s = status();
+        bell.className = '';
+        if (s === 'granted' && fcmToken) { bell.style.display = 'none'; return; }
+        bell.style.display = 'block';
+        if (s === 'unsupported') {
+          if (isIos && !isStandalone) { bell.textContent = '📲 لتفعيل الإشعارات: أضف التطبيق للشاشة الرئيسية'; bell.className = 'info'; }
+          else { bell.style.display = 'none'; }
+        } else if (s === 'denied') {
+          bell.textContent = '🔕 الإشعارات محظورة من إعدادات المتصفح'; bell.className = 'info';
+        } else {
+          bell.textContent = '🔔 تفعيل الإشعارات';
+        }
+      }
+
+      function pushToApp() {
+        if (!appWin || !appOrigin) return;
+        try {
+          if (fcmToken) appWin.postMessage({ type: 'HR_FCM_TOKEN', token: fcmToken, status: 'granted' }, appOrigin);
+          else appWin.postMessage({ type: 'HR_FCM_STATUS', status: status() }, appOrigin);
+        } catch (e) {}
+      }
+
+      async function fetchToken() {
+        try {
+          fcmToken = await messaging.getToken({ vapidKey: cfg.vapidKey, serviceWorkerRegistration: swReg });
+        } catch (e) { fcmToken = null; }
+        updateBell(); pushToApp();
+      }
+
+      async function requestPermission() {
+        if (unsupported || !('Notification' in window)) return;
+        var p = await Notification.requestPermission();
+        if (p === 'granted') await fetchToken();
+        updateBell(); pushToApp();
+      }
+
+      bell.addEventListener('click', function () {
+        if (status() === 'default') requestPermission();
+      });
+
+      window.addEventListener('message', function (e) {
+        if (!isAllowedOrigin(e.origin)) return;
+        var d = e.data || {};
+        if (typeof d.type !== 'string' || d.type.indexOf('HR_') !== 0) return;
+        appWin = e.source; appOrigin = e.origin;
+        if (d.type === 'HR_APP_READY' || d.type === 'HR_REQUEST_FCM') pushToApp();
+        if (d.type === 'HR_REQUEST_PERMISSION') requestPermission();
+      });
+
+      async function init() {
+        if (!cfg.firebase || !cfg.firebase.apiKey || !cfg.vapidKey) { unsupported = true; return; }
+        if (!('serviceWorker' in navigator) || !('Notification' in window)) { unsupported = true; updateBell(); return; }
+        var supported = await Promise.resolve(firebase.messaging.isSupported());
+        if (!supported) { unsupported = true; updateBell(); return; }
+
+        firebase.initializeApp(cfg.firebase);
+        messaging = firebase.messaging();
+        swReg = await navigator.serviceWorker.register('firebase-messaging-sw.js');
+        await navigator.serviceWorker.ready;
+
+        // التطبيق مفتوح: نعرض الإشعار داخل البرنامج نفسه
+        messaging.onMessage(function (payload) {
+          var n = (payload && payload.notification) || {};
+          if (appWin && appOrigin) {
+            try { appWin.postMessage({ type: 'HR_PUSH', title: n.title || '', body: n.body || '' }, appOrigin); } catch (e) {}
+          }
+        });
+
+        if (Notification.permission === 'granted') await fetchToken();
+        else { updateBell(); pushToApp(); }
+      }
+
+      init().catch(function () { unsupported = true; updateBell(); });
+      updateBell();
+    })();
+  </script>
+</body>
+</html>
