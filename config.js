@@ -1,7 +1,7 @@
 // ✏️ عدّل القيم دي فقط (الخطوات في README_AR.md)
 self.HR_PWA_CONFIG = {
   // رابط نشر البرنامج (Apps Script Web App) وينتهي بـ /exec
-  appUrl: "https://script.google.com/macros/s/XXXXXXXXXXXXXXXX/exec",
+  appUrl: "https://script.google.com/macros/s/AKfycbwYKBVEPX10AyYhTplFKFZkGfnb9u25a7L78XExc_mnXZE83aRwvQj-QOqfW_Quh_QasQ/exec",
 
   // من Firebase Console ← Project settings ← Your apps ← Web app ← firebaseConfig
   firebase: {
