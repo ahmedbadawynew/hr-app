@@ -21,11 +21,27 @@
     }
     #bell.show { display: block; }
     #bell.info { background: #475569; }
+    #installBar {
+      position: fixed; left: 50%; transform: translateX(-50%);
+      bottom: calc(64px + env(safe-area-inset-bottom, 0px)); z-index: 20;
+      width: min(94vw, 460px); background: #fff; color: #1e293b; border-radius: 14px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.28); border: 1px solid #c7d2fe; padding: 12px 14px;
+      display: none; align-items: center; gap: 10px; font-size: 13px; line-height: 1.6;
+    }
+    #installBar.show { display: flex; }
+    #installBar span { flex: 1; }
+    #installBtn { background: #312e81; color: #fff; border: 0; border-radius: 10px; padding: 8px 16px; font-size: 13px; font-weight: bold; }
+    #installClose { background: transparent; border: 0; font-size: 18px; color: #64748b; padding: 0 4px; }
   </style>
 </head>
 <body>
   <iframe id="app" title="HR Portal" allow="clipboard-read; clipboard-write"></iframe>
   <button id="bell" type="button"></button>
+  <div id="installBar" role="dialog" aria-live="polite">
+    <span id="installText"></span>
+    <button id="installBtn" type="button" style="display:none;">تثبيت</button>
+    <button id="installClose" type="button" aria-label="إغلاق">✕</button>
+  </div>
 
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
@@ -39,6 +55,63 @@
       var isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
       var isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
       var unsupported = false, messaging = null, swReg = null, fcmToken = null;
+
+      // تسجيل الـ Service Worker فورًا (مستقل عن إعدادات Firebase) — لازم عشان المتصفح يعتبر الصفحة قابلة للتثبيت
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('firebase-messaging-sw.js').catch(function () {});
+      }
+
+      // ===== رسالة تثبيت التطبيق =====
+      var installBar = document.getElementById('installBar');
+      var installText = document.getElementById('installText');
+      var installBtn = document.getElementById('installBtn');
+      var deferredPrompt = null, installShown = false;
+      var DISMISS_KEY = 'hr_install_dismissed_until';
+      var isAndroid = /android/i.test(navigator.userAgent);
+
+      function installDismissed() {
+        try { return Number(localStorage.getItem(DISMISS_KEY) || 0) > Date.now(); } catch (e) { return false; }
+      }
+      function hideInstallBar() { installBar.classList.remove('show'); }
+      function dismissInstall() {
+        try { localStorage.setItem(DISMISS_KEY, String(Date.now() + 7 * 24 * 3600 * 1000)); } catch (e) {}
+        hideInstallBar();
+      }
+      function showInstallBar(mode) {
+        if (isStandalone || installDismissed() || installShown) return;
+        installShown = true;
+        if (mode === 'prompt') {
+          installText.textContent = '📲 ثبّت التطبيق على جهازك للوصول السريع واستقبال الإشعارات.';
+          installBtn.style.display = 'inline-block';
+        } else if (mode === 'ios') {
+          installText.textContent = '📲 لتثبيت التطبيق: اضغط زر المشاركة ⬆️ ثم اختر «إضافة إلى الشاشة الرئيسية».';
+          installBtn.style.display = 'none';
+        } else {
+          installText.textContent = '📲 لتثبيت التطبيق: من قائمة المتصفح (⋮) اختر «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية».';
+          installBtn.style.display = 'none';
+        }
+        installBar.classList.add('show');
+      }
+
+      window.addEventListener('beforeinstallprompt', function (e) {
+        e.preventDefault();
+        deferredPrompt = e;
+        showInstallBar('prompt');
+      });
+      window.addEventListener('appinstalled', function () { deferredPrompt = null; hideInstallBar(); });
+      installBtn.addEventListener('click', function () {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then(function () { deferredPrompt = null; hideInstallBar(); });
+      });
+      document.getElementById('installClose').addEventListener('click', dismissInstall);
+
+      if (isIos && !isStandalone) {
+        setTimeout(function () { showInstallBar('ios'); }, 1500);
+      } else if (isAndroid && !isStandalone) {
+        // لو المتصفح ما بعتش حدث التثبيت خلال 4 ثواني نعرض التعليمات اليدوية
+        setTimeout(function () { if (!deferredPrompt) showInstallBar('manual'); }, 4000);
+      }
       var appWin = null, appOrigin = null;
 
       function isAllowedOrigin(o) {
