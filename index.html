@@ -167,14 +167,88 @@
         if (status() === 'default') requestPermission();
       });
 
+      // نقبل الرسائل فقط من الإطار اللي بيعرض برنامجنا (مش من أي صفحة تانية تحاول تحمّل الصفحة دي جواها)
+      function fromAppFrame(src) {
+        var frame = document.getElementById('app').contentWindow;
+        var w = src;
+        for (var i = 0; i < 6 && w; i++) {
+          if (w === frame) return true;
+          if (w === w.parent) return false;
+          w = w.parent;
+        }
+        return false;
+      }
+
+      // ===== الدخول بالبصمة (التحقق بيتم على الجهاز عبر WebAuthn، والتوكن بيتخزن هنا في الصفحة الأولى فقط) =====
+      var BIO_KEY = 'hr_bio_v1';
+      var bioSupported = false;
+      function b64u(buf) { var s = ''; var b = new Uint8Array(buf); for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+      function fromB64u(str) { str = str.replace(/-/g, '+').replace(/_/g, '/'); while (str.length % 4) str += '='; var bin = atob(str); var b = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) b[i] = bin.charCodeAt(i); return b; }
+      function bioLoad() { try { return JSON.parse(localStorage.getItem(BIO_KEY) || 'null'); } catch (e) { return null; } }
+      function bioSave(o) { try { localStorage.setItem(BIO_KEY, JSON.stringify(o)); return true; } catch (e) { return false; } }
+      function bioForget() { try { localStorage.removeItem(BIO_KEY); } catch (e) {} }
+      function reply(msg) { if (appWin && appOrigin) { try { appWin.postMessage(msg, appOrigin); } catch (e) {} } }
+
+      function sendBioStatus() {
+        var s = bioLoad();
+        reply({ type: 'HR_BIO_AVAILABLE', supported: bioSupported, enrolled: !!(s && s.token && s.credId), name: s && s.name || '' });
+      }
+
+      async function bioEnroll(token, name) {
+        try {
+          if (!bioSupported) throw { name: 'Unsupported' };
+          var cred = await navigator.credentials.create({ publicKey: {
+            challenge: crypto.getRandomValues(new Uint8Array(32)),
+            rp: { name: 'HR Portal' },
+            user: { id: crypto.getRandomValues(new Uint8Array(16)), name: name || 'user', displayName: name || 'user' },
+            pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
+            authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'discouraged' },
+            timeout: 60000, attestation: 'none'
+          }});
+          if (!bioSave({ token: token, credId: b64u(cred.rawId), name: name || '' })) throw { name: 'StorageError' };
+          reply({ type: 'HR_BIO_ENROLLED', ok: true });
+        } catch (err) {
+          reply({ type: 'HR_BIO_ENROLLED', ok: false, error: (err && err.name) || 'Error' });
+        }
+        sendBioStatus();
+      }
+
+      async function bioLogin() {
+        var s = bioLoad();
+        if (!s || !s.token || !s.credId) { reply({ type: 'HR_BIO_FAILED', reason: 'not_enrolled' }); sendBioStatus(); return; }
+        try {
+          var a = await navigator.credentials.get({ publicKey: {
+            challenge: crypto.getRandomValues(new Uint8Array(32)),
+            allowCredentials: [{ type: 'public-key', id: fromB64u(s.credId), transports: ['internal'] }],
+            userVerification: 'required', timeout: 60000
+          }});
+          // نتأكد إن الجهاز تحقق فعلًا من المستخدم (بصمة/وجه/قفل الشاشة) — البت UV في authenticatorData
+          var flags = new Uint8Array(a.response.authenticatorData)[32];
+          if (!(flags & 0x04)) throw { name: 'NotVerified' };
+          reply({ type: 'HR_BIO_TOKEN', token: s.token });
+        } catch (err) {
+          reply({ type: 'HR_BIO_FAILED', reason: (err && err.name) || 'Error' });
+        }
+      }
+
       window.addEventListener('message', function (e) {
-        if (!isAllowedOrigin(e.origin)) return;
+        if (!isAllowedOrigin(e.origin) || !fromAppFrame(e.source)) return;
         var d = e.data || {};
         if (typeof d.type !== 'string' || d.type.indexOf('HR_') !== 0) return;
         appWin = e.source; appOrigin = e.origin;
-        if (d.type === 'HR_APP_READY' || d.type === 'HR_REQUEST_FCM') pushToApp();
+        if (d.type === 'HR_APP_READY') { pushToApp(); sendBioStatus(); }
+        if (d.type === 'HR_REQUEST_FCM') pushToApp();
         if (d.type === 'HR_REQUEST_PERMISSION') requestPermission();
+        if (d.type === 'HR_BIO_STATUS') sendBioStatus();
+        if (d.type === 'HR_BIO_ENROLL' && typeof d.token === 'string') bioEnroll(d.token, d.name);
+        if (d.type === 'HR_BIO_LOGIN') bioLogin();
+        if (d.type === 'HR_BIO_CLEAR' || d.type === 'HR_BIO_DISABLE') { bioForget(); sendBioStatus(); }
       });
+
+      // هل الجهاز فيه بصمة/قفل شاشة مدعوم؟
+      if (window.PublicKeyCredential && PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) {
+        PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().then(function (ok) { bioSupported = !!ok; sendBioStatus(); }).catch(function () {});
+      }
 
       async function init() {
         if (!cfg.firebase || !cfg.firebase.apiKey || !cfg.vapidKey) { unsupported = true; return; }
